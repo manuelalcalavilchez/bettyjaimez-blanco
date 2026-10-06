@@ -189,6 +189,11 @@ const initDatabase = async () => {
     await ensureColumn('salón_config', 'nailStyles', 'TEXT');
     await ensureColumn('salón_config', 'products', 'TEXT');
     await ensureColumn('salón_config', 'theme', "TEXT DEFAULT 'floral'");
+    await ensureColumn('salón_config', 'heroTitle', 'TEXT');
+    await ensureColumn('salón_config', 'heroSubtitle', 'TEXT');
+    await ensureColumn('salón_config', 'heroDesc', 'TEXT');
+    await ensureColumn('salón_config', 'footerTitle', 'TEXT');
+    await ensureColumn('salón_config', 'footerSubtitle', 'TEXT');
 
     // Tabla de servicios
     await dbRun(`
@@ -471,7 +476,8 @@ app.put('/api/config', async (req, res) => {
       name, description, phone, email, address, hours, logo, coverPhoto,
       primaryColor, accentColor, backgroundColor, whatsapp, calendarPublic,
       workingHours, blockedSlots, vacations, nailShapes, nailLengths,
-      nailStyles, products, theme
+      nailStyles, products, theme,
+      heroTitle, heroSubtitle, heroDesc, footerTitle, footerSubtitle
     } = req.body;
 
     const existing = await dbGet('SELECT id FROM salón_config WHERE id = ?', ['main']);
@@ -487,6 +493,11 @@ app.put('/api/config', async (req, res) => {
       JSON.stringify(nailStyles ?? []),
       JSON.stringify(products ?? []),
       theme || 'floral',
+      heroTitle || null,
+      heroSubtitle || null,
+      heroDesc || null,
+      footerTitle || null,
+      footerSubtitle || null,
       new Date().toISOString()
     ];
 
@@ -496,7 +507,9 @@ app.put('/api/config', async (req, res) => {
          SET name = ?, description = ?, phone = ?, email = ?, address = ?, hours = ?,
              logo = ?, coverPhoto = ?, primaryColor = ?, accentColor = ?, backgroundColor = ?,
              whatsapp = ?, calendarPublic = ?, workingHours = ?, blockedSlots = ?, vacations = ?,
-             nailShapes = ?, nailLengths = ?, nailStyles = ?, products = ?, theme = ?, updatedAt = ?
+             nailShapes = ?, nailLengths = ?, nailStyles = ?, products = ?, theme = ?,
+             heroTitle = ?, heroSubtitle = ?, heroDesc = ?, footerTitle = ?, footerSubtitle = ?,
+             updatedAt = ?
          WHERE id = ?`,
         [...values, 'main']
       );
@@ -505,8 +518,9 @@ app.put('/api/config', async (req, res) => {
         `INSERT INTO salón_config
          (id, name, description, phone, email, address, hours, logo, coverPhoto,
           primaryColor, accentColor, backgroundColor, whatsapp, calendarPublic,
-          workingHours, blockedSlots, vacations, nailShapes, nailLengths, nailStyles, products, theme, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          workingHours, blockedSlots, vacations, nailShapes, nailLengths, nailStyles, products, theme,
+          heroTitle, heroSubtitle, heroDesc, footerTitle, footerSubtitle, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ['main', ...values]
       );
     }

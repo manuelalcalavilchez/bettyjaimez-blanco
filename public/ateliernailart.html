@@ -32,7 +32,32 @@ small{color:var(--mute)}.off{opacity:.35;pointer-events:none}
 .btn2{display:inline-block;padding:14px 20px;border-radius:12px;background:var(--gold);color:#1b2a10;font-weight:500;cursor:pointer;min-height:48px}.btn2.ghost{background:transparent;color:var(--gold);border:1px solid var(--gold)}.btn2 input{display:none}
 input,button{font-size:16px}.chip{min-height:40px}input[type=range]{height:32px}
 @media(max-width:859px){.stage{position:sticky;top:0;z-index:5;padding:8px;background:#0b2a08}#cv{max-height:44vh}.up.big{padding:40px 12px}.card{padding:14px}main{padding:8px}header{padding:14px 12px 0}h1{font-size:1.7rem}.sw{width:38px;height:38px}}
-</style></head><body><nav class="site-nav" aria-label="Navegación principal"><a class="brand" href="/">BettyJaimez Blanco</a><div class="links"><a href="/">Inicio</a><a href="/ateliernailart.html">Atelier Nail Art</a><a href="/">Reservar cita</a><a href="https://ar.lasgreenlantersnail.es/">Realidad aumentada</a></div></nav>
+</style>
+<script>
+(function(){
+  var THEMES={
+    floral:{nav:'#244536',gold:'#F2C6B5',bg:'#061a04',cardBg:'#0b2a08',mute:'#D98B73'},
+    nude:{nav:'#6B2D3E',gold:'#E8CABB',bg:'#1a0608',cardBg:'#2a0b12',mute:'#C9A68C'},
+    dark:{nav:'#1A1A2E',gold:'#F0D080',bg:'#0f0f1e',cardBg:'#1a1a2e',mute:'#C9A84C'},
+    minimal:{nav:'#F8F7F5',gold:'#1A1A1A',bg:'#f5f5f5',cardBg:'#ffffff',mute:'#888888'}
+  };
+  fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
+    var t=THEMES[(cfg&&cfg.theme)||'floral']||THEMES.floral;
+    var r=document.documentElement;
+    r.style.setProperty('--gold',t.gold);
+    r.style.setProperty('--line','rgba('+hexToRgb(t.gold)+',.3)');
+    r.style.setProperty('--mute',t.mute);
+    document.body.style.background='radial-gradient(ellipse at 30% 0,'+lighten(t.bg)+','+t.bg+' 60%) '+t.bg;
+    var navEl=document.querySelector('.site-nav');
+    if(navEl)navEl.style.background='rgba('+hexToRgb(t.nav)+',.96)';
+    var cards=document.querySelectorAll('.card');
+    cards.forEach(function(c){c.style.background=t.cardBg;c.style.borderColor='rgba('+hexToRgb(t.gold)+',.3)'});
+  }).catch(function(){});
+  function hexToRgb(h){h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];var n=parseInt(h,16);return((n>>16)&255)+','+(((n>>8)&255))+','+(n&255)}
+  function lighten(h){h=h.replace('#','');var n=parseInt(h,16),r=Math.min(255,((n>>16)&255)+60),g=Math.min(255,(((n>>8)&255))+60),b=Math.min(255,(n&255)+60);return'#'+(r*65536+g*256+b).toString(16).padStart(6,'0')}
+})();
+</script>
+</head><body><nav class="site-nav" aria-label="Navegación principal"><a class="brand" href="/">BettyJaimez Blanco</a><div class="links"><a href="/">Inicio</a><a href="/ateliernailart.html">Atelier Nail Art</a><a href="/">Reservar cita</a><a href="https://ar.lasgreenlantersnail.es/">Realidad aumentada</a></div></nav>
 <header><h1>Atelier Nail Art</h1><p>Sube una foto de tu mano y diseña tu manicura · BettyJaimez Blanco</p></header>
 <main>
 <section class="card stage">
@@ -74,7 +99,7 @@ const SH={almond:'Almendra',coffin:'Bailarina',square:'Cuadrada',round:'Redonda'
 const AD={french:'French',ombre:'Degradado',glitter:'Glitter',marble:'Mármol',stars:'Estrellas',gems:'Cristales',pearls:'Perlas'};
 const COL=['#c9184a','#ff8fa3','#f5d6c6','#f6efe2','#7b2cbf','#3a86ff','#2d6a4f','#d4af6a','#8d5a3b','#1b1b1b','#e63946','#ffffff'];
 // Rellena tu contacto (whatsapp con prefijo, sin +, ej. '34600000000') para la reserva cuando se abre como página propia
-const CONTACTO={whatsapp:'',email:''};
+const CONTACTO={whatsapp:'34614118598',email:''};
 const $=id=>document.getElementById(id),cv=$('cv');
 const S={photo:null,IW:1000,IH:1000,nails:[],sel:-1,placing:false,dsg:null,dw:1,dh:1};
 const rnd=s=>{s=s*9301+49297;return()=>(s=(s*9301+49297)%233280)/233280};

@@ -25,6 +25,11 @@ interface SalonConfig {
   nailStyles: string[];
   products: string[];
   theme?: string;
+  heroTitle?: string;
+  heroSubtitle?: string;
+  heroDesc?: string;
+  footerTitle?: string;
+  footerSubtitle?: string;
   colors: {
     primary: string;
     accent: string;
@@ -71,6 +76,11 @@ const DEFAULT_CONFIG: SalonConfig = {
   nailStyles: [],
   products: [],
   theme: 'floral',
+  heroTitle: '',
+  heroSubtitle: '',
+  heroDesc: '',
+  footerTitle: '',
+  footerSubtitle: '',
   colors: {
     primary: '#082D05',
     accent: '#8CFF00',
@@ -139,6 +149,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           nailStyles: parseArray(config.nailStyles, DEFAULT_CONFIG.nailStyles),
           products: parseArray(config.products),
           theme: config.theme || 'floral',
+          heroTitle: config.heroTitle || '',
+          heroSubtitle: config.heroSubtitle || '',
+          heroDesc: config.heroDesc || '',
+          footerTitle: config.footerTitle || '',
+          footerSubtitle: config.footerSubtitle || '',
           colors: {
             primary: config.primaryColor || DEFAULT_CONFIG.colors.primary,
             accent: config.accentColor || DEFAULT_CONFIG.colors.accent,
@@ -657,12 +672,98 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {/* CONTENIDOS */}
         {activeTab === 'contenidos' && (
-          <div className="bg-white rounded-3xl border border-[#8CFF00]/25 p-8">
-            <h2 className="font-display text-2xl font-bold text-[#082D05] mb-6">Textos y Contenidos</h2>
-            <p className="text-sm text-neutral-600 mb-6">Próximamente: Edición de textos de página principal, descripciones de servicios, testimonios y más contenido dinámico.</p>
-            <div className="bg-[#F7F8EF] p-6 rounded-xl text-center text-neutral-500">
-              <FileText className="w-12 h-12 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">Módulo en desarrollo...</p>
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl border border-[#8CFF00]/25 p-8">
+              <h2 className="font-display text-2xl font-bold text-[#082D05] mb-2">Textos de la página</h2>
+              <p className="text-sm text-neutral-500 mb-8">Edita los textos visibles en la página de inicio. Deja vacío para usar el texto por defecto.</p>
+
+              <div className="space-y-6">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-[#082D05] mb-4">Sección principal (Hero)</p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-1">Subtítulo de marca</label>
+                      <input
+                        type="text"
+                        value={editingConfig.heroSubtitle || ''}
+                        onChange={(e) => setEditingConfig({...editingConfig, heroSubtitle: e.target.value})}
+                        placeholder="BettyJaimez Blanco · Nail Studio"
+                        className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8CFF00] text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-1">Título principal</label>
+                      <input
+                        type="text"
+                        value={editingConfig.heroTitle || ''}
+                        onChange={(e) => setEditingConfig({...editingConfig, heroTitle: e.target.value})}
+                        placeholder="Belleza que florece."
+                        className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8CFF00] text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-1">Descripción</label>
+                      <textarea
+                        value={editingConfig.heroDesc || ''}
+                        onChange={(e) => setEditingConfig({...editingConfig, heroDesc: e.target.value})}
+                        placeholder="Manicura, diseño y cuidado de uñas con una inspiración floral que recuerda a Medellín, sus montañas y sus colores."
+                        rows={3}
+                        className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8CFF00] text-sm resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-neutral-200 pt-6">
+                  <p className="text-xs font-bold uppercase tracking-widest text-[#082D05] mb-4">Sección final (Footer)</p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-1">Título</label>
+                      <input
+                        type="text"
+                        value={editingConfig.footerTitle || ''}
+                        onChange={(e) => setEditingConfig({...editingConfig, footerTitle: e.target.value})}
+                        placeholder="Un detalle puede cambiarlo todo."
+                        className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8CFF00] text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-700 mb-1">Subtítulo</label>
+                      <input
+                        type="text"
+                        value={editingConfig.footerSubtitle || ''}
+                        onChange={(e) => setEditingConfig({...editingConfig, footerSubtitle: e.target.value})}
+                        placeholder="Nail art, color y cuidado pensados para ti."
+                        className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8CFF00] text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-neutral-200 pt-6">
+                  <button
+                    onClick={async () => {
+                      const payload = {
+                        ...editingConfig,
+                        primaryColor: editingConfig.colors.primary,
+                        accentColor: editingConfig.colors.accent,
+                        backgroundColor: editingConfig.colors.background,
+                      };
+                      const saved = await apiService.updateConfig(payload);
+                      if (saved?.success) {
+                        setSalonConfig(editingConfig);
+                        alert('Contenidos guardados. Recarga la página de inicio para ver los cambios.');
+                      } else {
+                        alert('No se pudo guardar.');
+                      }
+                    }}
+                    className="px-6 py-3 bg-[#082D05] text-[#F7F8EF] text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-[#176B00] transition-all flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Guardar contenidos</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
