@@ -11,6 +11,10 @@ RUN npm run build
 # --- Etapa 2: Servir frontend + API desde el mismo origen ---
 FROM node:20-alpine
 WORKDIR /app
+
+# Herramientas necesarias para compilar sqlite3 (módulo nativo)
+RUN apk add --no-cache python3 make g++
+
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/server.js ./server.js
