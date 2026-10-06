@@ -129,9 +129,9 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
 
     const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//Las Greenlanters Nails//Citas//ES
+PRODID:-//BettyJaimez Blanco//Citas//ES
 BEGIN:VEVENT
-SUMMARY:Cita Manicura - Las Greenlanters Nails
+SUMMARY:Cita Manicura - BettyJaimez Blanco
 DESCRIPTION:Servicios: ${serviceNames}. Especialista: ${specialistObj?.name || 'Cualquiera'}. Localizador: ${appt.locator}
 DTSTART:${appt.date.replace(/-/g, '')}T${appt.time.replace(':', '')}00Z
 DTEND:${appt.date.replace(/-/g, '')}T${(parseInt(appt.time.split(':')[0]) + 1).toString().padStart(2, '0')}${appt.time.split(':')[1]}00Z
@@ -345,7 +345,7 @@ END:VCALENDAR`;
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-display text-lg font-bold tracking-tight text-[#F7F8EF]">Las Greenlanters</span>
+                    <span className="font-display text-lg font-bold tracking-tight text-[#F7F8EF]">BettyJaimez Blanco</span>
                     <span className="block text-[9px] uppercase tracking-widest text-[#8CFF00]">Digital Gift Card</span>
                   </div>
                   <span className="font-display text-3xl font-bold text-[#8CFF00]">{amount}€</span>

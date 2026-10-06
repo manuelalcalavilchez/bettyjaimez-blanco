@@ -188,6 +188,7 @@ const initDatabase = async () => {
     await ensureColumn('salón_config', 'nailLengths', 'TEXT');
     await ensureColumn('salón_config', 'nailStyles', 'TEXT');
     await ensureColumn('salón_config', 'products', 'TEXT');
+    await ensureColumn('salón_config', 'theme', "TEXT DEFAULT 'floral'");
 
     // Tabla de servicios
     await dbRun(`
@@ -470,7 +471,7 @@ app.put('/api/config', async (req, res) => {
       name, description, phone, email, address, hours, logo, coverPhoto,
       primaryColor, accentColor, backgroundColor, whatsapp, calendarPublic,
       workingHours, blockedSlots, vacations, nailShapes, nailLengths,
-      nailStyles, products
+      nailStyles, products, theme
     } = req.body;
 
     const existing = await dbGet('SELECT id FROM salón_config WHERE id = ?', ['main']);
@@ -485,6 +486,7 @@ app.put('/api/config', async (req, res) => {
       JSON.stringify(nailLengths ?? []),
       JSON.stringify(nailStyles ?? []),
       JSON.stringify(products ?? []),
+      theme || 'floral',
       new Date().toISOString()
     ];
 
@@ -494,7 +496,7 @@ app.put('/api/config', async (req, res) => {
          SET name = ?, description = ?, phone = ?, email = ?, address = ?, hours = ?,
              logo = ?, coverPhoto = ?, primaryColor = ?, accentColor = ?, backgroundColor = ?,
              whatsapp = ?, calendarPublic = ?, workingHours = ?, blockedSlots = ?, vacations = ?,
-             nailShapes = ?, nailLengths = ?, nailStyles = ?, products = ?, updatedAt = ?
+             nailShapes = ?, nailLengths = ?, nailStyles = ?, products = ?, theme = ?, updatedAt = ?
          WHERE id = ?`,
         [...values, 'main']
       );
@@ -503,8 +505,8 @@ app.put('/api/config', async (req, res) => {
         `INSERT INTO salón_config
          (id, name, description, phone, email, address, hours, logo, coverPhoto,
           primaryColor, accentColor, backgroundColor, whatsapp, calendarPublic,
-          workingHours, blockedSlots, vacations, nailShapes, nailLengths, nailStyles, products, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          workingHours, blockedSlots, vacations, nailShapes, nailLengths, nailStyles, products, theme, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ['main', ...values]
       );
     }

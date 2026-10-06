@@ -24,6 +24,7 @@ interface SalonConfig {
   nailLengths: string[];
   nailStyles: string[];
   products: string[];
+  theme?: string;
   colors: {
     primary: string;
     accent: string;
@@ -69,6 +70,7 @@ const DEFAULT_CONFIG: SalonConfig = {
   nailLengths: [],
   nailStyles: [],
   products: [],
+  theme: 'floral',
   colors: {
     primary: '#082D05',
     accent: '#8CFF00',
@@ -88,7 +90,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => sessionStorage.getItem('bettyjaimez_staff_auth') === 'true');
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'config' | 'contenidos' | 'galeria' | 'servicios' | 'especialistas' | 'agenda' | 'designs' | 'requests'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'contenidos' | 'galeria' | 'servicios' | 'especialistas' | 'agenda' | 'designs' | 'requests' | 'presentacion'>('config');
   const [selectedTech, setSelectedTech] = useState<string>('all');
   const [selectedDesignModal, setSelectedDesignModal] = useState<CustomDesign | null>(null);
 
@@ -136,6 +138,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           nailLengths: parseArray(config.nailLengths, DEFAULT_CONFIG.nailLengths),
           nailStyles: parseArray(config.nailStyles, DEFAULT_CONFIG.nailStyles),
           products: parseArray(config.products),
+          theme: config.theme || 'floral',
           colors: {
             primary: config.primaryColor || DEFAULT_CONFIG.colors.primary,
             accent: config.accentColor || DEFAULT_CONFIG.colors.accent,
@@ -387,7 +390,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             { id: 'especialistas', label: 'Especialistas', icon: Users },
             { id: 'requests', label: 'Solicitudes', icon: BookmarkPlus },
             { id: 'agenda', label: 'Citas', icon: Calendar },
-            { id: 'designs', label: 'Diseños', icon: Palette }
+            { id: 'designs', label: 'Diseños', icon: Palette },
+            { id: 'presentacion', label: 'Presentación Web', icon: Palette }
           ].map(tab => {
             const Icon = tab.icon;
             return (
@@ -629,7 +633,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         ...editingConfig,
                         primaryColor: editingConfig.colors.primary,
                         accentColor: editingConfig.colors.accent,
-                        backgroundColor: editingConfig.colors.background
+                        backgroundColor: editingConfig.colors.background,
+                        theme: editingConfig.theme || 'floral'
                       };
                       const saved = await apiService.updateConfig(payload);
                       if (saved?.success) {
@@ -1162,6 +1167,123 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        )}
+
+        {/* PRESENTACIÓN WEB */}
+        {activeTab === 'presentacion' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl border border-[#8CFF00]/25 p-8">
+              <h2 className="font-display text-2xl font-bold text-[#082D05] mb-2">Presentación Web</h2>
+              <p className="text-sm text-neutral-500 mb-8">Elige cómo quieres que se vea tu página de inicio. El cambio se aplica al instante para todos tus visitantes.</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {[
+                  {
+                    id: 'floral',
+                    name: 'Floral Medellín',
+                    desc: 'Verde botánico y beige cálido. Tu estilo actual.',
+                    preview: {
+                      bg: '#244536',
+                      accent: '#F2C6B5',
+                      text: '#F7F0E8',
+                      dot1: '#D98B73',
+                      dot2: '#D8A62A'
+                    }
+                  },
+                  {
+                    id: 'nude',
+                    name: 'Rosa Boutique',
+                    desc: 'Rosa oscuro y crema. Elegante y femenino.',
+                    preview: {
+                      bg: '#6B2D3E',
+                      accent: '#E8CABB',
+                      text: '#FAF0EC',
+                      dot1: '#C9A68C',
+                      dot2: '#D4A0B0'
+                    }
+                  },
+                  {
+                    id: 'dark',
+                    name: 'Noche Dorada',
+                    desc: 'Negro profundo y dorado. Lujo y exclusividad.',
+                    preview: {
+                      bg: '#1A1A2E',
+                      accent: '#F0D080',
+                      text: '#F9F8F5',
+                      dot1: '#C9A84C',
+                      dot2: '#8B7340'
+                    }
+                  },
+                  {
+                    id: 'minimal',
+                    name: 'Mármol Blanco',
+                    desc: 'Blanco y negro. Minimalismo puro.',
+                    preview: {
+                      bg: '#F8F7F5',
+                      accent: '#1A1A1A',
+                      text: '#1A1A1A',
+                      dot1: '#D0CCC8',
+                      dot2: '#A0A0A0'
+                    }
+                  }
+                ].map(theme => {
+                  const isActive = (editingConfig.theme || 'floral') === theme.id;
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => setEditingConfig(prev => ({ ...prev, theme: theme.id }))}
+                      className={`text-left rounded-2xl border-2 overflow-hidden transition-all ${isActive ? 'border-[#082D05] shadow-lg scale-[1.02]' : 'border-neutral-200 hover:border-neutral-400'}`}
+                    >
+                      {/* Mini preview */}
+                      <div className="h-32 relative overflow-hidden" style={{ backgroundColor: theme.preview.bg }}>
+                        <div className="absolute -right-8 -top-8 w-24 h-24 rounded-full opacity-20" style={{ backgroundColor: theme.preview.dot1 }} />
+                        <div className="absolute -left-8 bottom-0 w-20 h-20 rounded-full opacity-15" style={{ backgroundColor: theme.preview.dot2 }} />
+                        <div className="relative z-10 p-4 space-y-2">
+                          <div className="w-16 h-2 rounded-full opacity-60" style={{ backgroundColor: theme.preview.accent }} />
+                          <div className="w-24 h-3 rounded-full opacity-90" style={{ backgroundColor: theme.preview.text }} />
+                          <div className="w-20 h-2 rounded-full opacity-50" style={{ backgroundColor: theme.preview.text }} />
+                          <div className="mt-3 w-16 h-6 rounded-lg opacity-80" style={{ backgroundColor: theme.preview.accent }} />
+                        </div>
+                        {isActive && (
+                          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#082D05] flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <p className="font-semibold text-sm text-[#082D05]">{theme.name}</p>
+                        <p className="text-xs text-neutral-500 mt-1">{theme.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-neutral-200">
+                <button
+                  onClick={async () => {
+                    const payload = {
+                      ...editingConfig,
+                      primaryColor: editingConfig.colors.primary,
+                      accentColor: editingConfig.colors.accent,
+                      backgroundColor: editingConfig.colors.background,
+                      theme: editingConfig.theme || 'floral'
+                    };
+                    const saved = await apiService.updateConfig(payload);
+                    if (saved?.success) {
+                      setSalonConfig(editingConfig);
+                      alert('Presentación actualizada. Recarga la página de inicio para ver el cambio.');
+                    } else {
+                      alert('No se pudo guardar.');
+                    }
+                  }}
+                  className="px-8 py-3 bg-[#082D05] hover:bg-[#176B00] text-[#F7F8EF] text-xs font-bold uppercase tracking-widest rounded-xl transition-all"
+                >
+                  Aplicar presentación
+                </button>
+              </div>
             </div>
           </div>
         )}

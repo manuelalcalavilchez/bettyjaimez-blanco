@@ -20,6 +20,7 @@ export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customDesigns, setCustomDesigns] = useState<CustomDesign[]>([]);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+  const [siteTheme, setSiteTheme] = useState<string>(() => localStorage.getItem('bettyjaimez_theme') || 'floral');
 
   const [catalogStyles, setCatalogStyles] = useState<NailCatalogStyle[]>(() => {
     const saved = localStorage.getItem('bettyjaimez_catalog_styles');
@@ -40,7 +41,13 @@ export default function App() {
   // Los datos privados de citas y diseÃ±os se cargan Ãºnicamente desde Cabina Staff.
   // La web pÃºblica no debe consultar endpoints protegidos al arrancar.
   useEffect(() => {
-    setIsLoadingData(false);
+    apiService.getConfig().then(config => {
+      if (config?.theme) {
+        setSiteTheme(config.theme);
+        localStorage.setItem('bettyjaimez_theme', config.theme);
+      }
+      setIsLoadingData(false);
+    }).catch(() => setIsLoadingData(false));
   }, []);
 
   useEffect(() => {
@@ -108,8 +115,9 @@ export default function App() {
             transition={{ duration: 0.25, ease: 'easeOut' }}
           >
         {activeTab === 'home' && (
-          <HomeView 
-            setActiveTab={setActiveTab} 
+          <HomeView
+            setActiveTab={setActiveTab}
+            theme={siteTheme}
           />
         )}
         {activeTab === 'livear' && (
