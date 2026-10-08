@@ -7,6 +7,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import bodyParser from 'body-parser';
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -107,6 +108,85 @@ const ensureColumn = async (table, column, definition) => {
     await dbRun(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 };
+
+// ==================== SEGURIDAD STAFF ====================
+// Autenticacion de la Cabina Staff validada en servidor. El PIN nunca viaja al bundle del frontend.
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback, linklocal, uniquelocal');
+
+const STAFF_PIN = process.env.STAFF_PIN || '';
+const STAFF_SESSION_SECRET = process.env.STAFF_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const STAFF_SESSION_MS = (Number(process.env.STAFF_SESSION_HOURS) || 12) * 60 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+if (!STAFF_PIN) console.warn('[staff] STAFF_PIN no configurado: el acceso Staff queda deshabilitado.');
+if (!process.env.STAFF_SESSION_SECRET) console.warn('[staff] STAFF_SESSION_SECRET no configurado: las sesiones se invalidan al reiniciar.');
+
+const revokedStaffTokens = new Map();
+const staffLoginAttempts = new Map();
+
+const hmac = (value) => crypto.createHmac('sha256', STAFF_SESSION_SECRET).update(String(value)).digest('base64url');
+const safeEqual = (a, b) => {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+};
+const createStaffToken = () => {
+  const payload = Buffer.from(JSON.stringify({ jti: crypto.randomBytes(16).toString('hex'), exp: Date.now() + STAFF_SESSION_MS })).toString('base64url');
+  return `${payload}.${hmac(payload)}`;
+};
+const verifyStaffToken = (token) => {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature || !safeEqual(signature, hmac(payload))) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    if (!data?.jti || typeof data.exp !== 'number' || data.exp < Date.now()) return null;
+    if (revokedStaffTokens.has(data.jti)) return null;
+    return data;
+  } catch { return null; }
+};
+const requireStaff = (req, res, next) => {
+  const header = req.header('authorization') || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  const session = verifyStaffToken(token);
+  if (!session) return res.status(401).json({ error: 'No autorizado' });
+  req.staffSession = session;
+  next();
+};
+setInterval(() => {
+  const now = Date.now();
+  for (const [jti, exp] of revokedStaffTokens) if (exp < now) revokedStaffTokens.delete(jti);
+  for (const [ip, a] of staffLoginAttempts) if ((a.lockedUntil || 0) < now && now - a.firstAt > LOGIN_WINDOW_MS) staffLoginAttempts.delete(ip);
+}, 10 * 60 * 1000).unref();
+
+app.post('/api/staff/login', async (req, res) => {
+  if (!STAFF_PIN) return res.status(503).json({ error: 'Acceso Staff no configurado en el servidor' });
+  const ip = req.ip || 'unknown';
+  const now = Date.now();
+  let attempt = staffLoginAttempts.get(ip);
+  if (!attempt || now - attempt.firstAt > LOGIN_WINDOW_MS) attempt = { count: 0, firstAt: now, lockedUntil: 0 };
+  if (attempt.lockedUntil > now) {
+    const retryAfter = Math.ceil((attempt.lockedUntil - now) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    return res.status(429).json({ error: 'Demasiados intentos. Prueba más tarde.', retryAfter });
+  }
+  const pin = typeof req.body?.pin === 'string' ? req.body.pin : '';
+  if (pin && safeEqual(hmac(`pin:${pin}`), hmac(`pin:${STAFF_PIN}`))) {
+    staffLoginAttempts.delete(ip);
+    return res.json({ success: true, token: createStaffToken(), expiresIn: STAFF_SESSION_MS });
+  }
+  attempt.count += 1;
+  if (attempt.count >= LOGIN_MAX_ATTEMPTS) attempt.lockedUntil = now + LOGIN_WINDOW_MS;
+  staffLoginAttempts.set(ip, attempt);
+  await new Promise(r => setTimeout(r, 400));
+  return res.status(401).json({ error: 'PIN incorrecto', remaining: Math.max(0, LOGIN_MAX_ATTEMPTS - attempt.count) });
+});
+app.get('/api/staff/session', requireStaff, (req, res) => res.json({ authenticated: true, expiresAt: req.staffSession.exp }));
+app.post('/api/staff/logout', requireStaff, (req, res) => {
+  revokedStaffTokens.set(req.staffSession.jti, req.staffSession.exp);
+  res.json({ success: true });
+});
 
 // Crear tablas al iniciar
 const initDatabase = async () => {
@@ -336,7 +416,7 @@ const initDatabase = async () => {
 // ==================== RUTAS API ====================
 
 // CITAS
-app.get('/api/appointments', async (req, res) => {
+app.get('/api/appointments', requireStaff, async (req, res) => {
   try {
     const appointments = await dbAll('SELECT * FROM appointments ORDER BY date DESC, time DESC');
     res.json(appointments.map(a => ({
@@ -373,7 +453,7 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
-app.put('/api/appointments/:id', async (req, res) => {
+app.put('/api/appointments/:id', requireStaff, async (req, res) => {
   try {
     const { status, notes } = req.body;
     
@@ -400,7 +480,7 @@ app.put('/api/appointments/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/appointments/:id', async (req, res) => {
+app.delete('/api/appointments/:id', requireStaff, async (req, res) => {
   try {
     await dbRun('DELETE FROM appointments WHERE id = ?', [req.params.id]);
     res.json({ success: true });
@@ -410,7 +490,7 @@ app.delete('/api/appointments/:id', async (req, res) => {
 });
 
 // DISEOS
-app.get('/api/designs', async (req, res) => {
+app.get('/api/designs', requireStaff, async (req, res) => {
   try {
     const designs = await dbAll('SELECT * FROM custom_designs ORDER BY createdAt DESC');
     res.json(designs);
@@ -436,7 +516,7 @@ app.post('/api/designs', async (req, res) => {
   }
 });
 
-app.put('/api/designs/:id', async (req, res) => {
+app.put('/api/designs/:id', requireStaff, async (req, res) => {
   try {
     const { status } = req.body;
     
@@ -451,7 +531,7 @@ app.put('/api/designs/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/designs/:id', async (req, res) => {
+app.delete('/api/designs/:id', requireStaff, async (req, res) => {
   try {
     await dbRun('DELETE FROM custom_designs WHERE id = ?', [req.params.id]);
     res.json({ success: true });
@@ -470,7 +550,7 @@ app.get('/api/config', async (req, res) => {
   }
 });
 
-app.put('/api/config', async (req, res) => {
+app.put('/api/config', requireStaff, async (req, res) => {
   try {
     const {
       name, description, phone, email, address, hours, logo, coverPhoto,
@@ -542,7 +622,7 @@ app.get('/api/services', async (req, res) => {
   }
 });
 
-app.post('/api/services', async (req, res) => {
+app.post('/api/services', requireStaff, async (req, res) => {
   try {
     const { id, name, duration, price, description, shortDescription, longDescription, category, featured, sortOrder, instagramSource } = req.body;
     const now = new Date().toISOString();
@@ -557,7 +637,7 @@ app.post('/api/services', async (req, res) => {
   }
 });
 
-app.put('/api/services/:id', async (req, res) => {
+app.put('/api/services/:id', requireStaff, async (req, res) => {
   try {
     const { name, duration, price, description, shortDescription, longDescription, category, featured, sortOrder, instagramSource } = req.body;
     await dbRun(
@@ -571,7 +651,7 @@ app.put('/api/services/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/services/:id', async (req, res) => {
+app.delete('/api/services/:id', requireStaff, async (req, res) => {
   try {
     await dbRun('UPDATE services SET active = 0 WHERE id = ?', [req.params.id]);
     res.json({ success: true });
@@ -590,7 +670,7 @@ app.get('/api/specialists', async (req, res) => {
   }
 });
 
-app.post('/api/specialists', async (req, res) => {
+app.post('/api/specialists', requireStaff, async (req, res) => {
   try {
     const { id, name, role, photo, description } = req.body;
     
@@ -605,7 +685,7 @@ app.post('/api/specialists', async (req, res) => {
   }
 });
 
-app.put('/api/specialists/:id', async (req, res) => {
+app.put('/api/specialists/:id', requireStaff, async (req, res) => {
   try {
     const { name, role, photo, description } = req.body;
     
@@ -620,7 +700,7 @@ app.put('/api/specialists/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/specialists/:id', async (req, res) => {
+app.delete('/api/specialists/:id', requireStaff, async (req, res) => {
   try {
     await dbRun('UPDATE specialists SET active = 0 WHERE id = ?', [req.params.id]);
     res.json({ success: true });
@@ -681,7 +761,7 @@ app.get('/api/gallery', async (req, res) => {
   }
 });
 
-app.post('/api/gallery', async (req, res) => {
+app.post('/api/gallery', requireStaff, async (req, res) => {
   try {
     const { id, photoBase64, title, caption } = req.body;
     const order = await dbGet('SELECT MAX(displayOrder) as max FROM gallery');
@@ -698,7 +778,7 @@ app.post('/api/gallery', async (req, res) => {
   }
 });
 
-app.delete('/api/gallery/:id', async (req, res) => {
+app.delete('/api/gallery/:id', requireStaff, async (req, res) => {
   try {
     await dbRun('DELETE FROM gallery WHERE id = ?', [req.params.id]);
     res.json({ success: true });
@@ -738,7 +818,7 @@ app.post('/api/booking-request', async (req, res) => {
   }
 });
 
-app.get('/api/booking-requests', async (req, res) => {
+app.get('/api/booking-requests', requireStaff, async (req, res) => {
   try {
     const requests = await dbAll('SELECT * FROM booking_requests ORDER BY createdAt DESC');
     res.json(requests);
@@ -747,7 +827,7 @@ app.get('/api/booking-requests', async (req, res) => {
   }
 });
 
-app.put('/api/booking-requests/:id', async (req, res) => {
+app.put('/api/booking-requests/:id', requireStaff, async (req, res) => {
   try {
     const { status } = req.body;
     
@@ -762,7 +842,7 @@ app.put('/api/booking-requests/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/booking-requests/:id', async (req, res) => {
+app.delete('/api/booking-requests/:id', requireStaff, async (req, res) => {
   try {
     await dbRun('DELETE FROM booking_requests WHERE id = ?', [req.params.id]);
     res.json({ success: true });

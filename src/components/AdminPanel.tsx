@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Users, Palette, CheckCircle2, Clock, XCircle, Phone, Sparkles, Filter, Plus, Eye, BookmarkPlus, Lock, LogOut, Settings, Image, FileText, Trash2, Edit2, Save, X } from 'lucide-react';
 import { Appointment, CustomDesign, NailCatalogStyle } from '../types';
-import { apiService } from '../data/api';
+import { apiService, staffSession, STAFF_UNAUTHORIZED_EVENT } from '../data/api';
 
-// This is only a client-side local gate, not real authentication. Use server-side auth before public deployment of Staff.
-const STAFF_PIN = import.meta.env.VITE_STAFF_PIN || '';
+// La autenticación Staff se valida en el servidor (POST /api/staff/login). Aquí solo se guarda el token de sesión.
 
 interface SalonConfig {
   name: string;
@@ -97,9 +96,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   setCatalogStyles,
   onAddToCatalog
 }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => sessionStorage.getItem('bettyjaimez_staff_auth') === 'true');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => Boolean(staffSession.getToken()));
   const [pinInput, setPinInput] = useState<string>('');
-  const [pinError, setPinError] = useState<boolean>(false);
+  const [pinError, setPinError] = useState<string>('');
+  const [pinLoading, setPinLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'config' | 'contenidos' | 'galeria' | 'servicios' | 'especialistas' | 'agenda' | 'designs' | 'requests' | 'presentacion'>('config');
   const [selectedTech, setSelectedTech] = useState<string>('all');
   const [selectedDesignModal, setSelectedDesignModal] = useState<CustomDesign | null>(null);
@@ -121,13 +121,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const reloadStaffData = async () => {
     setIsLoadingData(true);
     try {
-      const [config, apiServices, apiSpecialists, gallery, requests] = await Promise.all([
+      const [config, apiServices, apiSpecialists, gallery, requests, apiAppointments, apiDesigns] = await Promise.all([
         apiService.getConfig(),
         apiService.getServices(),
         apiService.getSpecialists(),
         apiService.getGallery(),
-        apiService.getBookingRequests()
+        apiService.getBookingRequests(),
+        apiService.getAppointments(),
+        apiService.getDesigns()
       ]);
+
+      // Citas y diseños son privados: solo se obtienen con sesión Staff válida
+      setAppointments(Array.isArray(apiAppointments) ? apiAppointments : []);
+      setCustomDesigns(Array.isArray(apiDesigns) ? apiDesigns : []);
 
       if (config && config.id) {
         const parseArray = (value: unknown, fallback: any[] = []) => {
@@ -176,8 +182,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
+  // Verifica la sesión contra el servidor antes de cargar datos privados
   useEffect(() => {
-    reloadStaffData();
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    apiService.staffCheckSession().then(valid => {
+      if (cancelled) return;
+      if (valid) reloadStaffData();
+      else setIsAuthenticated(false);
+    });
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setIsAuthenticated(false);
+      setPinError('La sesión ha caducado. Vuelve a introducir el PIN.');
+    };
+    window.addEventListener(STAFF_UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(STAFF_UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
 
   // Edit states
@@ -185,21 +208,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [editingSpecialist, setEditingSpecialist] = useState<any | null>(null);
   const [editingConfig, setEditingConfig] = useState<SalonConfig>(DEFAULT_CONFIG);
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === STAFF_PIN) {
-      sessionStorage.setItem('bettyjaimez_staff_auth', 'true');
+    if (!pinInput || pinLoading) return;
+    setPinLoading(true);
+    const result = await apiService.staffLogin(pinInput);
+    setPinLoading(false);
+    setPinInput('');
+    if (result.success) {
+      setPinError('');
       setIsAuthenticated(true);
-      setPinError(false);
     } else {
-      setPinError(true);
-      setPinInput('');
+      const suffix = result.retryAfter
+        ? ` Espera ${Math.ceil(result.retryAfter / 60)} min.`
+        : typeof result.remaining === 'number' ? ` Intentos restantes: ${result.remaining}.` : '';
+      setPinError(`${result.error || 'PIN incorrecto.'}${suffix}`);
     }
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('bettyjaimez_staff_auth');
+  const handleLogout = async () => {
+    await apiService.staffLogout();
     setIsAuthenticated(false);
+    setAppointments([]);
+    setCustomDesigns([]);
+    setBookingRequests([]);
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -360,17 +392,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               inputMode="numeric"
               autoFocus
               value={pinInput}
-              onChange={(e) => { setPinInput(e.target.value); setPinError(false); }}
+              onChange={(e) => { setPinInput(e.target.value); setPinError(''); }}
               placeholder="? ? ? ?"
               className={`w-full text-center tracking-[0.5em] text-lg px-4 py-3 rounded-xl border text-[#082D05] focus:outline-none focus:ring-2 focus:ring-[#8CFF00] ${pinError ? 'border-rose-400' : 'border-neutral-300'}`}
             />
-            {pinError && <p className="text-xs text-rose-500 font-semibold mt-2">PIN incorrecto.</p>}
+            {pinError && <p className="text-xs text-rose-500 font-semibold mt-2">{pinError}</p>}
           </div>
           <button
             type="submit"
-            className="w-full py-3.5 bg-[#082D05] hover:bg-[#176B00] text-[#F7F8EF] text-xs font-bold uppercase tracking-widest rounded-xl transition-all"
+            disabled={pinLoading || !pinInput}
+            className="w-full py-3.5 bg-[#082D05] hover:bg-[#176B00] disabled:opacity-60 disabled:cursor-not-allowed text-[#F7F8EF] text-xs font-bold uppercase tracking-widest rounded-xl transition-all"
           >
-            Acceder
+            {pinLoading ? 'Comprobando…' : 'Acceder'}
           </button>
         </form>
       </div>

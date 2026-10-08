@@ -1,11 +1,51 @@
 // Servicio API para comunicarse con el servidor Express
 const API_BASE = '/api';
 
+// ==================== SESIÓN STAFF ====================
+const STAFF_TOKEN_KEY = 'bettyjaimez_staff_token';
+export const STAFF_UNAUTHORIZED_EVENT = 'bettyjaimez:staff-unauthorized';
+
+export const staffSession = {
+  getToken: () => sessionStorage.getItem(STAFF_TOKEN_KEY) || '',
+  setToken: (token: string) => sessionStorage.setItem(STAFF_TOKEN_KEY, token),
+  clear: () => sessionStorage.removeItem(STAFF_TOKEN_KEY)
+};
+
+const apiFetch = async (url: string, init: RequestInit = {}) => {
+  const token = staffSession.getToken();
+  const headers = new Headers(init.headers || {});
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(url, { ...init, headers });
+  if (res.status === 401 && token) {
+    staffSession.clear();
+    window.dispatchEvent(new Event(STAFF_UNAUTHORIZED_EVENT));
+  }
+  return res;
+};
+
 export const apiService = {
+  // STAFF
+  async staffLogin(pin: string): Promise<{ success?: boolean; error?: string; retryAfter?: number; remaining?: number }> {
+    try {
+      const res = await fetch(`${API_BASE}/staff/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.token) { staffSession.setToken(data.token); return { success: true }; }
+      return { error: data?.error || 'No se pudo iniciar sesión', retryAfter: data?.retryAfter, remaining: data?.remaining };
+    } catch { return { error: 'No se pudo contactar con el servidor' }; }
+  },
+  async staffCheckSession(): Promise<boolean> {
+    if (!staffSession.getToken()) return false;
+    try { return (await apiFetch(`${API_BASE}/staff/session`)).ok; } catch { return false; }
+  },
+  async staffLogout() {
+    try { if (staffSession.getToken()) await apiFetch(`${API_BASE}/staff/logout`, { method: 'POST' }); } catch { /* ignore */ }
+    staffSession.clear();
+  },
+
   // CITAS
   async getAppointments() {
     try {
-      const res = await fetch(`${API_BASE}/appointments`);
+      const res = await apiFetch(`${API_BASE}/appointments`);
       return res.json();
     } catch (err) {
       console.error('Error fetching appointments:', err);
@@ -15,7 +55,7 @@ export const apiService = {
 
   async createAppointment(appointment: any) {
     try {
-      const res = await fetch(`${API_BASE}/appointments`, {
+      const res = await apiFetch(`${API_BASE}/appointments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(appointment)
@@ -29,7 +69,7 @@ export const apiService = {
 
   async updateAppointment(id: string, data: any) {
     try {
-      const res = await fetch(`${API_BASE}/appointments/${id}`, {
+      const res = await apiFetch(`${API_BASE}/appointments/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -43,7 +83,7 @@ export const apiService = {
 
   async deleteAppointment(id: string) {
     try {
-      const res = await fetch(`${API_BASE}/appointments/${id}`, {
+      const res = await apiFetch(`${API_BASE}/appointments/${id}`, {
         method: 'DELETE'
       });
       return res.json();
@@ -56,7 +96,7 @@ export const apiService = {
   // DISEÑOS
   async getDesigns() {
     try {
-      const res = await fetch(`${API_BASE}/designs`);
+      const res = await apiFetch(`${API_BASE}/designs`);
       return res.json();
     } catch (err) {
       console.error('Error fetching designs:', err);
@@ -66,7 +106,7 @@ export const apiService = {
 
   async createDesign(design: any) {
     try {
-      const res = await fetch(`${API_BASE}/designs`, {
+      const res = await apiFetch(`${API_BASE}/designs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(design)
@@ -80,7 +120,7 @@ export const apiService = {
 
   async updateDesign(id: string, data: any) {
     try {
-      const res = await fetch(`${API_BASE}/designs/${id}`, {
+      const res = await apiFetch(`${API_BASE}/designs/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -94,7 +134,7 @@ export const apiService = {
 
   async deleteDesign(id: string) {
     try {
-      const res = await fetch(`${API_BASE}/designs/${id}`, {
+      const res = await apiFetch(`${API_BASE}/designs/${id}`, {
         method: 'DELETE'
       });
       return res.json();
@@ -107,7 +147,7 @@ export const apiService = {
   // CONFIGURACIÓN
   async getConfig() {
     try {
-      const res = await fetch(`${API_BASE}/config`);
+      const res = await apiFetch(`${API_BASE}/config`);
       return res.json();
     } catch (err) {
       console.error('Error fetching config:', err);
@@ -117,7 +157,7 @@ export const apiService = {
 
   async updateConfig(config: any) {
     try {
-      const res = await fetch(`${API_BASE}/config`, {
+      const res = await apiFetch(`${API_BASE}/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -132,7 +172,7 @@ export const apiService = {
   // SERVICIOS
   async getServices() {
     try {
-      const res = await fetch(`${API_BASE}/services`);
+      const res = await apiFetch(`${API_BASE}/services`);
       return res.json();
     } catch (err) {
       console.error('Error fetching services:', err);
@@ -142,7 +182,7 @@ export const apiService = {
 
   async createService(service: any) {
     try {
-      const res = await fetch(`${API_BASE}/services`, {
+      const res = await apiFetch(`${API_BASE}/services`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(service)
@@ -156,7 +196,7 @@ export const apiService = {
 
   async updateService(id: string, service: any) {
     try {
-      const res = await fetch(`${API_BASE}/services/${id}`, {
+      const res = await apiFetch(`${API_BASE}/services/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(service)
@@ -170,7 +210,7 @@ export const apiService = {
 
   async deleteService(id: string) {
     try {
-      const res = await fetch(`${API_BASE}/services/${id}`, {
+      const res = await apiFetch(`${API_BASE}/services/${id}`, {
         method: 'DELETE'
       });
       return res.json();
@@ -183,7 +223,7 @@ export const apiService = {
   // ESPECIALISTAS
   async getSpecialists() {
     try {
-      const res = await fetch(`${API_BASE}/specialists`);
+      const res = await apiFetch(`${API_BASE}/specialists`);
       return res.json();
     } catch (err) {
       console.error('Error fetching specialists:', err);
@@ -193,7 +233,7 @@ export const apiService = {
 
   async createSpecialist(specialist: any) {
     try {
-      const res = await fetch(`${API_BASE}/specialists`, {
+      const res = await apiFetch(`${API_BASE}/specialists`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(specialist)
@@ -207,7 +247,7 @@ export const apiService = {
 
   async updateSpecialist(id: string, specialist: any) {
     try {
-      const res = await fetch(`${API_BASE}/specialists/${id}`, {
+      const res = await apiFetch(`${API_BASE}/specialists/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(specialist)
@@ -221,7 +261,7 @@ export const apiService = {
 
   async deleteSpecialist(id: string) {
     try {
-      const res = await fetch(`${API_BASE}/specialists/${id}`, {
+      const res = await apiFetch(`${API_BASE}/specialists/${id}`, {
         method: 'DELETE'
       });
       return res.json();
@@ -234,7 +274,7 @@ export const apiService = {
   // GALERÍA
   async getGallery() {
     try {
-      const res = await fetch(`${API_BASE}/gallery`);
+      const res = await apiFetch(`${API_BASE}/gallery`);
       return res.json();
     } catch (err) {
       console.error('Error fetching gallery:', err);
@@ -244,7 +284,7 @@ export const apiService = {
 
   async uploadPhoto(photo: any) {
     try {
-      const res = await fetch(`${API_BASE}/gallery`, {
+      const res = await apiFetch(`${API_BASE}/gallery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(photo)
@@ -258,7 +298,7 @@ export const apiService = {
 
   async deletePhoto(id: string) {
     try {
-      const res = await fetch(`${API_BASE}/gallery/${id}`, {
+      const res = await apiFetch(`${API_BASE}/gallery/${id}`, {
         method: 'DELETE'
       });
       return res.json();
@@ -271,7 +311,7 @@ export const apiService = {
   // SOLICITUDES DE CITA
   async submitBookingRequest(request: any) {
     try {
-      const res = await fetch(`${API_BASE}/booking-request`, {
+      const res = await apiFetch(`${API_BASE}/booking-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)
@@ -285,7 +325,7 @@ export const apiService = {
 
   async getBookingRequests() {
     try {
-      const res = await fetch(`${API_BASE}/booking-requests`);
+      const res = await apiFetch(`${API_BASE}/booking-requests`);
       return res.json();
     } catch (err) {
       console.error('Error fetching booking requests:', err);
@@ -295,7 +335,7 @@ export const apiService = {
 
   async updateBookingRequest(id: string, status: string) {
     try {
-      const res = await fetch(`${API_BASE}/booking-requests/${id}`, {
+      const res = await apiFetch(`${API_BASE}/booking-requests/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
@@ -309,7 +349,7 @@ export const apiService = {
 
   async deleteBookingRequest(id: string) {
     try {
-      const res = await fetch(`${API_BASE}/booking-requests/${id}`, {
+      const res = await apiFetch(`${API_BASE}/booking-requests/${id}`, {
         method: 'DELETE'
       });
       return res.json();
@@ -322,7 +362,7 @@ export const apiService = {
   // SALUD
   async checkHealth() {
     try {
-      const res = await fetch(`${API_BASE}/health`);
+      const res = await apiFetch(`${API_BASE}/health`);
       return res.ok;
     } catch {
       return false;
